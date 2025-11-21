@@ -25,6 +25,10 @@ const App: React.FC = () => {
 
   // Use refs for mutable state accessible inside intervals/listeners without re-binding
   const directionRef = useRef<Direction>(INITIAL_DIRECTION);
+  // Use a ref to track the last processed direction to prevent 180-degree turns in a single tick
+  const lastProcessedDirectionRef = useRef<Direction>(INITIAL_DIRECTION);
+  
+  // Fix: Use generic type for interval ID to support both Node and Browser environments
   const gameLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Initialize scores from local storage
@@ -39,7 +43,11 @@ const App: React.FC = () => {
     let newFood: Coordinate;
     let isOnSnake = true;
     
-    while (isOnSnake) {
+    // Simple safety break to prevent infinite loops if grid is full (though unlikely)
+    let attempts = 0;
+    const maxAttempts = GRID_SIZE * GRID_SIZE * 2;
+
+    while (isOnSnake && attempts < maxAttempts) {
       newFood = {
         x: Math.floor(Math.random() * GRID_SIZE),
         y: Math.floor(Math.random() * GRID_SIZE),
@@ -47,8 +55,9 @@ const App: React.FC = () => {
       // eslint-disable-next-line no-loop-func
       isOnSnake = currentSnake.some(segment => segment.x === newFood.x && segment.y === newFood.y);
       if (!isOnSnake) return newFood;
+      attempts++;
     }
-    return { x: 0, y: 0 }; // Fallback should not happen
+    return { x: 0, y: 0 }; 
   }, []);
 
   const handleGameOver = useCallback(async () => {
@@ -76,13 +85,15 @@ const App: React.FC = () => {
   }, [score, highScores]);
 
   const moveSnake = useCallback(() => {
+    // Lock in the direction for this tick
+    const currentMoveDir = directionRef.current;
+    lastProcessedDirectionRef.current = currentMoveDir;
+
     setSnake(prevSnake => {
       const head = prevSnake[0];
-      const currentDir = directionRef.current;
-      
       const newHead = { ...head };
 
-      switch (currentDir) {
+      switch (currentMoveDir) {
         case Direction.UP: newHead.y -= 1; break;
         case Direction.DOWN: newHead.y += 1; break;
         case Direction.LEFT: newHead.x -= 1; break;
@@ -139,26 +150,33 @@ const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (gameStatus !== GameStatus.PLAYING) return;
 
-      const currentDir = directionRef.current;
+      // Check against the last processed direction to prevent rapid-fire suicide turns
+      const currentDir = lastProcessedDirectionRef.current;
       
       switch (e.key) {
         case 'ArrowUp':
+        case 'w':
+        case 'W':
           if (currentDir !== Direction.DOWN) directionRef.current = Direction.UP;
           break;
         case 'ArrowDown':
+        case 's':
+        case 'S':
           if (currentDir !== Direction.UP) directionRef.current = Direction.DOWN;
           break;
         case 'ArrowLeft':
+        case 'a':
+        case 'A':
           if (currentDir !== Direction.RIGHT) directionRef.current = Direction.LEFT;
           break;
         case 'ArrowRight':
+        case 'd':
+        case 'D':
           if (currentDir !== Direction.LEFT) directionRef.current = Direction.RIGHT;
           break;
         default:
           return; 
       }
-      // Prevent default scrolling for arrow keys
-      e.preventDefault();
       setDirection(directionRef.current);
     };
 
@@ -170,6 +188,7 @@ const App: React.FC = () => {
     setSnake(INITIAL_SNAKE);
     setDirection(INITIAL_DIRECTION);
     directionRef.current = INITIAL_DIRECTION;
+    lastProcessedDirectionRef.current = INITIAL_DIRECTION;
     setScore(0);
     setGameStatus(GameStatus.PLAYING);
     setFood(generateFood(INITIAL_SNAKE));
@@ -183,7 +202,7 @@ const App: React.FC = () => {
         <h1 className="text-4xl md:text-5xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 mb-2">
           RETRO SNAKE
         </h1>
-        <p className="text-slate-400 text-sm">Use Arrow Keys to Move</p>
+        <p className="text-slate-400 text-sm">Use Arrow Keys or WASD to Move</p>
       </header>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start justify-center w-full max-w-5xl">
@@ -248,31 +267,31 @@ const App: React.FC = () => {
             )}
           </div>
           
-          {/* Mobile Controls (Optional, for responsiveness) */}
+          {/* Mobile Controls */}
           <div className="grid grid-cols-3 gap-2 lg:hidden mt-4">
             <div />
             <button 
               className="p-4 bg-slate-700 rounded-lg active:bg-slate-600"
-              onPointerDown={() => { if (directionRef.current !== Direction.DOWN) directionRef.current = Direction.UP; }}
+              onPointerDown={() => { if (lastProcessedDirectionRef.current !== Direction.DOWN) directionRef.current = Direction.UP; }}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
             </button>
             <div />
             <button 
               className="p-4 bg-slate-700 rounded-lg active:bg-slate-600"
-              onPointerDown={() => { if (directionRef.current !== Direction.RIGHT) directionRef.current = Direction.LEFT; }}
+              onPointerDown={() => { if (lastProcessedDirectionRef.current !== Direction.RIGHT) directionRef.current = Direction.LEFT; }}
             >
                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
             <button 
               className="p-4 bg-slate-700 rounded-lg active:bg-slate-600"
-              onPointerDown={() => { if (directionRef.current !== Direction.UP) directionRef.current = Direction.DOWN; }}
+              onPointerDown={() => { if (lastProcessedDirectionRef.current !== Direction.UP) directionRef.current = Direction.DOWN; }}
             >
                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <button 
               className="p-4 bg-slate-700 rounded-lg active:bg-slate-600"
-              onPointerDown={() => { if (directionRef.current !== Direction.LEFT) directionRef.current = Direction.RIGHT; }}
+              onPointerDown={() => { if (lastProcessedDirectionRef.current !== Direction.LEFT) directionRef.current = Direction.RIGHT; }}
             >
                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
