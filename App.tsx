@@ -28,8 +28,8 @@ const App: React.FC = () => {
   // Use a ref to track the last processed direction to prevent 180-degree turns in a single tick
   const lastProcessedDirectionRef = useRef<Direction>(INITIAL_DIRECTION);
   
-  // Fix: Use generic type for interval ID to support both Node and Browser environments
-  const gameLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Use 'number' type for browser interval IDs and explicitly use window.setInterval
+  const gameLoopRef = useRef<number | null>(null);
 
   // Initialize scores from local storage
   useEffect(() => {
@@ -61,7 +61,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleGameOver = useCallback(async () => {
-    if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+    if (gameLoopRef.current !== null) {
+      window.clearInterval(gameLoopRef.current);
+      gameLoopRef.current = null;
+    }
     setGameStatus(GameStatus.GAME_OVER);
     
     // Save Score
@@ -136,12 +139,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (gameStatus === GameStatus.PLAYING) {
       const speed = Math.max(50, INITIAL_SPEED - Math.floor(score / 50) * 5); // Increase speed slightly as score goes up
-      gameLoopRef.current = setInterval(moveSnake, speed);
+      // Use window.setInterval to return a number ID
+      gameLoopRef.current = window.setInterval(moveSnake, speed);
     } else {
-      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+      if (gameLoopRef.current !== null) {
+        window.clearInterval(gameLoopRef.current);
+        gameLoopRef.current = null;
+      }
     }
     return () => {
-      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+      if (gameLoopRef.current !== null) {
+        window.clearInterval(gameLoopRef.current);
+        gameLoopRef.current = null;
+      }
     };
   }, [gameStatus, moveSnake, score]);
 
