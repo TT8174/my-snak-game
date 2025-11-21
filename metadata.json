@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Retro Snake AI",
+  "description": "A classic Snake game featuring a persistent leaderboard and AI-powered game-over commentary using Gemini.",
+  "requestFramePermissions": []
+}
